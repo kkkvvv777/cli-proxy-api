@@ -19,59 +19,12 @@ printf 'MANAGEMENT_PASSWORD=%s\nGATEWAY_API_BIND_IP=127.0.0.1\nGATEWAY_API_PORT=
 现有 Nginx 负责 `80/443`、证书和域名转发；不要把 `8317` 加入云安全组。
 因此不需要把证书复制到本项目的 `runtime/tls/`。只有启用可选的 `bundled-edge` profile
 时，才需要把证书放到 `runtime/tls/server.crt` 和 `server.key`。
-将下面的 Nginx 站点配置保存到 `/etc/nginx/sites-available/ai-longsun-lite.com`，
+将仓库中的 `nginx-host.conf` 复制到 `/etc/nginx/sites-available/ai-longsun-lite.com`，
 替换当前用于证书申请的临时配置：
 
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ai.longsun-lite.com;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/letsencrypt;
-    }
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name ai.longsun-lite.com;
-
-    ssl_certificate /etc/letsencrypt/live/ai.longsun-lite.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ai.longsun-lite.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-
-    location /v1/ {
-        client_max_body_size 0;
-        proxy_pass http://127.0.0.1:8317;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_buffering off;
-        proxy_request_buffering off;
-        proxy_cache off;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:8317;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_buffering off;
-        proxy_request_buffering off;
-        proxy_cache off;
-    }
-}
+```sh
+sudo cp deploy/company/nginx-host.conf /etc/nginx/sites-available/ai-longsun-lite.com
+sudo ln -sf /etc/nginx/sites-available/ai-longsun-lite.com /etc/nginx/sites-enabled/ai-longsun-lite.com
 ```
 
 然后执行 `sudo nginx -t && sudo systemctl reload nginx`。
