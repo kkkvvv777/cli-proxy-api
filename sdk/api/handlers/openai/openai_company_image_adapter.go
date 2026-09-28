@@ -272,17 +272,23 @@ func (h *OpenAIResponsesAPIHandler) handleCompanyResponsesImageStream(c *gin.Con
 
 	responseID := "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	created := time.Now().Unix()
-	createdResponse := []byte(`{"id":"","object":"response","created_at":0,"status":"in_progress","model":"","output":[]}`)
+	createdResponse := []byte(`{"id":"","object":"response","created_at":0,"status":"in_progress","background":false,"error":null,"model":"","output":[],"parallel_tool_calls":true}`)
 	createdResponse, _ = sjson.SetBytes(createdResponse, "id", responseID)
 	createdResponse, _ = sjson.SetBytes(createdResponse, "created_at", created)
 	createdResponse, _ = sjson.SetBytes(createdResponse, "model", request.Model)
+	sequenceNumber := int64(0)
 	writeResponseEvent := func(eventType string, payload []byte) {
+		payload, _ = sjson.SetBytes(payload, "sequence_number", sequenceNumber)
+		sequenceNumber++
 		_, _ = fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, payload)
 		flusher.Flush()
 	}
-	createdEvent := []byte(`{"type":"response.created","response":{}}`)
+	createdEvent := []byte(`{"type":"response.created","sequence_number":0,"response":{}}`)
 	createdEvent, _ = sjson.SetRawBytes(createdEvent, "response", createdResponse)
 	writeResponseEvent("response.created", createdEvent)
+	inProgressEvent := []byte(`{"type":"response.in_progress","sequence_number":0,"response":{}}`)
+	inProgressEvent, _ = sjson.SetRawBytes(inProgressEvent, "response", createdResponse)
+	writeResponseEvent("response.in_progress", inProgressEvent)
 
 	// Image generation is completion-oriented. The native image executor still
 	// uses its own upstream streaming path, while this compatibility surface
@@ -310,17 +316,64 @@ func (h *OpenAIResponsesAPIHandler) handleCompanyResponsesImageStream(c *gin.Con
 	handlers.WriteUpstreamHeaders(c.Writer.Header(), upstreamHeaders)
 	responsePayload, _ = sjson.SetBytes(responsePayload, "id", responseID)
 	responsePayload, _ = sjson.SetBytes(responsePayload, "created_at", created)
-	output := gjson.GetBytes(responsePayload, "output")
-	for index, item := range output.Array() {
-		itemEvent := []byte(`{"type":"response.output_item.done","output_index":0,"item":{}}`)
-		itemEvent, _ = sjson.SetBytes(itemEvent, "output_index", index)
-		itemEvent, _ = sjson.SetRawBytes(itemEvent, "item", []byte(item.Raw))
-		writeResponseEvent("response.output_item.done", itemEvent)
+	imageEvents, err := buildCompanyResponsesImageStreamEvents(responsePayload, sequenceNumber)
+	if err != nil {
+		errMsg := &interfaces.ErrorMessage{StatusCode: http.StatusBadGateway, Error: err}
+		writeResponseEvent("error", handlers.BuildOpenAIResponsesStreamErrorChunk(errMsg.StatusCode, errMsg.Error.Error(), int(sequenceNumber)))
+		cancel(err)
+		return
 	}
-	completedEvent := []byte(`{"type":"response.completed","response":{}}`)
-	completedEvent, _ = sjson.SetRawBytes(completedEvent, "response", responsePayload)
-	writeResponseEvent("response.completed", completedEvent)
+	for _, event := range imageEvents {
+		writeResponseEvent(event.Type, event.Payload)
+	}
 	cancel(nil)
+}
+
+type companyResponsesImageStreamEvent struct {
+	Type    string
+	Payload []byte
+}
+
+func buildCompanyResponsesImageStreamEvents(responsePayload []byte, sequenceNumber int64) ([]companyResponsesImageStreamEvent, error) {
+	if !json.Valid(responsePayload) {
+		return nil, fmt.Errorf("invalid image response envelope")
+	}
+	output := gjson.GetBytes(responsePayload, "output")
+	if !output.IsArray() || len(output.Array()) == 0 {
+		return nil, fmt.Errorf("image response envelope has no output items")
+	}
+
+	events := make([]companyResponsesImageStreamEvent, 0, len(output.Array())*2+1)
+	for index, item := range output.Array() {
+		itemPayload := []byte(item.Raw)
+		if strings.TrimSpace(item.Get("id").String()) == "" {
+			itemPayload, _ = sjson.SetBytes(itemPayload, "id", "ig_"+strings.ReplaceAll(uuid.NewString(), "-", ""))
+			responsePayload, _ = sjson.SetRawBytes(responsePayload, fmt.Sprintf("output.%d", index), itemPayload)
+		}
+
+		addedItem := itemPayload
+		addedItem, _ = sjson.SetBytes(addedItem, "status", "in_progress")
+		addedItem, _ = sjson.DeleteBytes(addedItem, "result")
+		addedEvent := []byte(`{"type":"response.output_item.added","sequence_number":0,"output_index":0,"item":{}}`)
+		addedEvent, _ = sjson.SetBytes(addedEvent, "sequence_number", sequenceNumber)
+		sequenceNumber++
+		addedEvent, _ = sjson.SetBytes(addedEvent, "output_index", index)
+		addedEvent, _ = sjson.SetRawBytes(addedEvent, "item", addedItem)
+		events = append(events, companyResponsesImageStreamEvent{Type: "response.output_item.added", Payload: addedEvent})
+
+		doneEvent := []byte(`{"type":"response.output_item.done","sequence_number":0,"output_index":0,"item":{}}`)
+		doneEvent, _ = sjson.SetBytes(doneEvent, "sequence_number", sequenceNumber)
+		sequenceNumber++
+		doneEvent, _ = sjson.SetBytes(doneEvent, "output_index", index)
+		doneEvent, _ = sjson.SetRawBytes(doneEvent, "item", itemPayload)
+		events = append(events, companyResponsesImageStreamEvent{Type: "response.output_item.done", Payload: doneEvent})
+	}
+
+	completedEvent := []byte(`{"type":"response.completed","sequence_number":0,"response":{}}`)
+	completedEvent, _ = sjson.SetBytes(completedEvent, "sequence_number", sequenceNumber)
+	completedEvent, _ = sjson.SetRawBytes(completedEvent, "response", responsePayload)
+	events = append(events, companyResponsesImageStreamEvent{Type: "response.completed", Payload: completedEvent})
+	return events, nil
 }
 
 func buildCompanyResponsesImageResponse(imagePayload []byte, model string) ([]byte, error) {

@@ -123,3 +123,35 @@ func TestCompanyResponsesImageResponseSupportsDataURL(t *testing.T) {
 		t.Fatalf("data URL result = %q, want AA==", got)
 	}
 }
+
+func TestBuildCompanyResponsesImageStreamEvents(t *testing.T) {
+	response := []byte(`{"id":"resp-1","status":"completed","output":[{"type":"image_generation_call","status":"completed","result":"aW1hZ2U="}]}`)
+	events, err := buildCompanyResponsesImageStreamEvents(response, 4)
+	if err != nil {
+		t.Fatalf("buildCompanyResponsesImageStreamEvents() error = %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("event count = %d, want 3", len(events))
+	}
+	if events[0].Type != "response.output_item.added" || events[1].Type != "response.output_item.done" || events[2].Type != "response.completed" {
+		t.Fatalf("event types = %q, %q, %q", events[0].Type, events[1].Type, events[2].Type)
+	}
+	if got := gjson.GetBytes(events[0].Payload, "sequence_number").Int(); got != 4 {
+		t.Fatalf("added sequence_number = %d, want 4", got)
+	}
+	if got := gjson.GetBytes(events[0].Payload, "item.status").String(); got != "in_progress" {
+		t.Fatalf("added status = %q, want in_progress", got)
+	}
+	if gjson.GetBytes(events[0].Payload, "item.result").Exists() {
+		t.Fatal("added image item should not contain the completed result")
+	}
+	if got := gjson.GetBytes(events[1].Payload, "item.result").String(); got != "aW1hZ2U=" {
+		t.Fatalf("done result = %q", got)
+	}
+	if got := gjson.GetBytes(events[2].Payload, "response.output.0.id").String(); got == "" {
+		t.Fatal("completed response output item has no id")
+	}
+	if got := gjson.GetBytes(events[2].Payload, "sequence_number").Int(); got != 6 {
+		t.Fatalf("completed sequence_number = %d, want 6", got)
+	}
+}
