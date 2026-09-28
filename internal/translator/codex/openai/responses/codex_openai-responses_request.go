@@ -194,20 +194,10 @@ func stripPromptCacheBreakpointFromContent(content gjson.Result) ([]byte, bool) 
 	return translatorcommon.JoinRawArray(rebuiltParts), true
 }
 
-// applyResponsesCompactionCompatibility handles OpenAI Responses context_management.compaction
-// for Codex upstream compatibility.
-//
-// Codex /responses currently rejects context_management with:
-// {"detail":"Unsupported parameter: context_management"}.
-//
-// Compatibility strategy:
-// 1) Remove context_management before forwarding to Codex upstream.
+// applyResponsesCompactionCompatibility preserves the official Responses
+// context-management controls. The Codex OAuth upstream accepts these fields,
+// so the gateway must not silently disable upstream-managed compaction.
 func applyResponsesCompactionCompatibility(rawJSON []byte) []byte {
-	if !gjson.GetBytes(rawJSON, "context_management").Exists() {
-		return rawJSON
-	}
-
-	rawJSON, _ = sjson.DeleteBytes(rawJSON, "context_management")
 	return rawJSON
 }
 

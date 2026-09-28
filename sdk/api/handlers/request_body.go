@@ -9,11 +9,34 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/klauspost/compress/zstd"
+	"github.com/tidwall/gjson"
 )
+
+const requestBodyMetadataKey = "cliproxy.request.body.metadata"
+
+type requestBodyMetadata struct {
+	model  string
+	stream bool
+}
+
+// RequestBodyMetadata returns only routing metadata, never the request body.
+func RequestBodyMetadata(c *gin.Context) (string, bool) {
+	value, _ := c.Get(requestBodyMetadataKey)
+	metadata, _ := value.(requestBodyMetadata)
+	return metadata.model, metadata.stream
+}
 
 // ReadRequestBody reads the incoming request body and decodes supported
 // Content-Encoding values before handlers inspect JSON fields.
-func ReadRequestBody(c *gin.Context) ([]byte, error) {
+func ReadRequestBody(c *gin.Context) (body []byte, readErr error) {
+	defer func() {
+		if readErr == nil && c != nil {
+			fields := gjson.GetManyBytes(body, "model", "stream")
+			c.Set(requestBodyMetadataKey, requestBodyMetadata{
+				model: strings.Clone(fields[0].String()), stream: fields[1].Bool(),
+			})
+		}
+	}()
 	raw, err := c.GetRawData()
 	if err != nil {
 		return nil, err

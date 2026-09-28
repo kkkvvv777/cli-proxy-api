@@ -2,6 +2,9 @@ package cliproxy
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/pluginhost"
@@ -9,9 +12,64 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/watcher"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v7/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	coreexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 )
+
+func TestConfigReloadBeforeFirstCodexAuthUsesUpdatedProxy(t *testing.T) {
+	var oldCalls, newCalls atomic.Int32
+	newProxy := func(calls *atomic.Int32) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if r.Method != http.MethodConnect || r.Host != "chatgpt.com:443" {
+				t.Errorf("unexpected proxy request: %s %s", r.Method, r.Host)
+			}
+			// Stop before TLS so this test never connects to the real upstream.
+			w.WriteHeader(http.StatusBadGateway)
+		}))
+	}
+	oldProxy := newProxy(&oldCalls)
+	defer oldProxy.Close()
+	updatedProxy := newProxy(&newCalls)
+	defer updatedProxy.Close()
+
+	initial := &config.Config{}
+	initial.ProxyURL = oldProxy.URL
+	service := &Service{
+		cfg:         initial,
+		coreManager: coreauth.NewManager(nil, nil, nil),
+	}
+	service.registerAvailableExecutors(t.Context(), executorRegistrationOptions{includeBaseline: true})
+
+	updated := initial.CloneForRuntime()
+	updated.ProxyURL = updatedProxy.URL
+	if !service.applyConfigUpdateWithAuthSynthesis(t.Context(), updated, false) {
+		t.Fatal("config reload failed")
+	}
+
+	auth := &coreauth.Auth{
+		ID:         "first-codex-auth",
+		Provider:   "codex",
+		Status:     coreauth.StatusActive,
+		Attributes: map[string]string{"api_key": "test-only"},
+	}
+	service.ensureExecutorsForAuth(auth)
+	exec, ok := service.coreManager.Executor("codex")
+	if !ok {
+		t.Fatal("expected codex executor")
+	}
+	_, err := exec.Execute(t.Context(), auth, coreexecutor.Request{
+		Model:   "gpt-5.5",
+		Payload: []byte(`{"model":"gpt-5.5","input":"test"}`),
+	}, coreexecutor.Options{SourceFormat: sdktranslator.FromString("openai-response")})
+	if err == nil {
+		t.Fatal("expected the test proxy to reject CONNECT")
+	}
+	if oldCalls.Load() != 0 || newCalls.Load() != 1 {
+		t.Fatalf("proxy calls: old=%d updated=%d; error=%v", oldCalls.Load(), newCalls.Load(), err)
+	}
+}
 
 func TestEnsureExecutorsForAuth_CodexDoesNotReplaceInNormalMode(t *testing.T) {
 	service := &Service{

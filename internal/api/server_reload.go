@@ -46,6 +46,12 @@ func (s *Server) UpdateClientsContext(ctx context.Context, cfg *config.Config) b
 	if s == nil || cfg == nil {
 		return false
 	}
+	// Authentication boundaries and storage locations cannot change during hot reload.
+	if cfg.CompanyGateway != s.companyConfig {
+		log.Warn("company-gateway changes require restart; preserving current settings")
+		cfg = cfg.CloneForRuntime()
+		cfg.CompanyGateway = s.companyConfig
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}

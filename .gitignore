@@ -9,6 +9,10 @@ config.yaml
 # Generated content
 bin/*
 /logs
+/data
+/deploy/company/runtime/
+/deploy/company/backups/
+/.impeccable/
 conv/*
 temp/*
 refs/*

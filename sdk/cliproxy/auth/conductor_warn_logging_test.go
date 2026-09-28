@@ -8,11 +8,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	log "github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 )
+
+func TestCompanyUpstreamDiagnosticPrivacy(t *testing.T) {
+	hook := setupTestLoggerHook(t)
+	warnLogUpstreamFailure(logging.WithMetadataOnly(context.Background()), nil, "claude", "model",
+		&Auth{ID: "private-auth", Attributes: map[string]string{"api_key": "private-upstream-key"}},
+		time.Millisecond, statusErrorLogTestError{message: "private-prompt-echo", statusCode: 503})
+	entries := hook.AllEntries()
+	if len(entries) != 1 || strings.Contains(entries[0].Message, "private-") ||
+		!strings.Contains(entries[0].Message, "diagnostic body omitted") {
+		t.Fatalf("diagnostic privacy failure: %+v", entries)
+	}
+}
 
 func setupTestLoggerHook(t *testing.T) *logtest.Hook {
 	_, hook := logtest.NewNullLogger()

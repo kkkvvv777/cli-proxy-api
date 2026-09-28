@@ -109,6 +109,14 @@ func (s *Service) commitConfigUpdate(newCfg *config.Config) configCommit {
 	if newCfg == nil {
 		return configCommit{}
 	}
+	s.cfgMu.RLock()
+	currentCfg := s.cfg
+	s.cfgMu.RUnlock()
+	if currentCfg != nil && newCfg.CompanyGateway != currentCfg.CompanyGateway {
+		log.Warn("company-gateway changes require restart; preserving current service settings")
+		newCfg = newCfg.CloneForRuntime()
+		newCfg.CompanyGateway = currentCfg.CompanyGateway
+	}
 	if errValidate := newCfg.ValidateCredentialWeights(); errValidate != nil {
 		log.WithError(errValidate).Warn("rejected config update with invalid credential weights")
 		return configCommit{}
@@ -178,7 +186,8 @@ func (s *Service) applyConfigRuntime(ctx context.Context, commit configCommit, s
 		auths = s.coreManager.List()
 	}
 	s.registerAvailableExecutors(registrationCtx, executorRegistrationOptions{
-		includeBaseline:   cfg.Home.Enabled,
+		// Baseline executors exist before any auth is added and also retain config.
+		includeBaseline:   true,
 		forceReplaceAuths: true,
 		auths:             auths,
 	})

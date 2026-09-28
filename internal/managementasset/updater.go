@@ -111,6 +111,9 @@ func autoUpdateSkipReason(cfg *config.Config) (string, bool) {
 	if cfg.Home.Enabled {
 		return "cluster mode enabled", true
 	}
+	if cfg.CompanyGateway.Enabled {
+		return "company management build is pinned", true
+	}
 	if cfg.RemoteManagement.DisableControlPanel {
 		return "control panel disabled", true
 	}

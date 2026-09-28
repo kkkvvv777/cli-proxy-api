@@ -1950,6 +1950,10 @@ func warnLogUpstreamFailure(ctx context.Context, entry *log.Entry, provider, mod
 	}
 	authIdent := formatAuthIdentity(auth, provider)
 	errSummary := safeErrorDiagnosticForLog(err)
+	if logging.MetadataOnly(ctx) {
+		authIdent = "redacted"
+		errSummary = "upstream request failed (diagnostic body omitted)"
+	}
 	duration = duration.Round(time.Millisecond)
 	if statusCode := statusCodeFromError(err); statusCode != 0 {
 		entry.Warnf("%3d | %13v | upstream execution failed: provider=%s model=%s auth=%s err=%s", statusCode, duration, provider, model, authIdent, errSummary)

@@ -487,6 +487,10 @@ func (h *BaseAPIHandler) GetContextWithCancel(handler interfaces.APIHandler, c *
 			parentCtx = logging.WithRequestID(parentCtx, requestID)
 		}
 	}
+	parentCtx = coreusage.CopyRequestPlugin(parentCtx, requestCtx)
+	if logging.MetadataOnly(requestCtx) {
+		parentCtx = logging.WithMetadataOnly(parentCtx)
+	}
 	newCtx, cancel := context.WithCancel(parentCtx)
 
 	endpoint := ""

@@ -6,7 +6,8 @@ package config
 
 // Config represents the application's configuration, loaded from a YAML file.
 type Config struct {
-	SDKConfig `yaml:",inline"`
+	SDKConfig      `yaml:",inline"`
+	CompanyGateway CompanyGatewayConfig `yaml:"company-gateway" json:"company-gateway"`
 	// Host is the network host/interface on which the API server will bind.
 	// Default is empty ("") to bind all interfaces (IPv4 + IPv6). Use "127.0.0.1" or "localhost" for local-only access.
 	Host string `yaml:"host" json:"-"`
@@ -183,4 +184,10 @@ type Config struct {
 
 	// Payload defines default and override rules for provider payload parameters.
 	Payload PayloadConfig `yaml:"payload" json:"payload"`
+}
+
+// CompanyGatewayConfig is restart-required and opt-in.
+type CompanyGatewayConfig struct {
+	Enabled bool   `yaml:"enabled" json:"enabled"`
+	DataDir string `yaml:"data-dir" json:"data-dir"`
 }

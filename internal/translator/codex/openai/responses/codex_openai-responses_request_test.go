@@ -425,7 +425,7 @@ func TestUserFieldDeletion(t *testing.T) {
 	}
 }
 
-func TestContextManagementCompactionCompatibility(t *testing.T) {
+func TestContextManagementCompactionPassesThrough(t *testing.T) {
 	inputJSON := []byte(`{
 		"model": "gpt-5.2",
 		"context_management": [
@@ -440,15 +440,15 @@ func TestContextManagementCompactionCompatibility(t *testing.T) {
 	output := ConvertOpenAIResponsesRequestToCodex("gpt-5.2", inputJSON, false)
 	outputStr := string(output)
 
-	if gjson.Get(outputStr, "context_management").Exists() {
-		t.Fatalf("context_management should be removed for Codex compatibility")
+	if !gjson.Get(outputStr, "context_management").Exists() {
+		t.Fatalf("context_management should pass through to Codex OAuth upstream")
 	}
-	if gjson.Get(outputStr, "truncation").Exists() {
-		t.Fatalf("truncation should be removed for Codex compatibility")
+	if got := gjson.Get(outputStr, "context_management.0.compact_threshold").Int(); got != 12000 {
+		t.Fatalf("compact_threshold = %d, want 12000", got)
 	}
 }
 
-func TestTruncationRemovedForCodexCompatibility(t *testing.T) {
+func TestTruncationIsRemovedForCodexCompatibility(t *testing.T) {
 	inputJSON := []byte(`{
 		"model": "gpt-5.2",
 		"truncation": "disabled",
@@ -459,7 +459,7 @@ func TestTruncationRemovedForCodexCompatibility(t *testing.T) {
 	outputStr := string(output)
 
 	if gjson.Get(outputStr, "truncation").Exists() {
-		t.Fatalf("truncation should be removed for Codex compatibility")
+		t.Fatalf("truncation should be removed for the Codex OAuth upstream: %s", outputStr)
 	}
 }
 

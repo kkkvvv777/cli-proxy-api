@@ -1,0 +1,30 @@
+host: "0.0.0.0"
+port: 8317
+company-gateway:
+  enabled: true
+  data-dir: "/CLIProxyAPI/data"
+auth-dir: "/CLIProxyAPI/auths"
+remote-management:
+  allow-remote: true
+  secret-key: ""
+  disable-auto-update-panel: true
+# MANAGEMENT_PASSWORD is supplied by Compose. Neither 8317 nor OAuth callback
+# ports are published to the host. All access goes through the VPN-bound edge.
+api-keys: []
+request-log: false
+commercial-mode: true
+debug: false
+logging-to-file: false
+usage-statistics-enabled: false
+ws-auth: true
+plugins:
+  enabled: false
+  dir: "/CLIProxyAPI/plugins"
+request-retry: 1
+max-retry-credentials: 3
+streaming:
+  keepalive-seconds: 15
+nonstream-keepalive-interval: 15
+routing:
+  strategy: round-robin
+# Configure upstream API keys / OAuth from the existing management panel.

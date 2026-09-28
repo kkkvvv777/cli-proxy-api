@@ -1,0 +1,98 @@
+.page {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.heading,
+.toolbar,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.heading {
+  justify-content: space-between;
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    letter-spacing: 0;
+  }
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    letter-spacing: 0;
+  }
+}
+
+.toolbar {
+  align-items: end;
+  > label {
+    display: grid;
+    gap: 8px;
+  }
+  :global(.form-group) {
+    margin: 0;
+  }
+}
+
+.editor {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.employeeTable {
+  min-width: 680px;
+}
+.auditTable {
+  min-width: 1250px;
+}
+.model {
+  max-width: 230px;
+  overflow-wrap: anywhere;
+}
+.requestId {
+  font-family: $font-mono;
+  font-size: 12px;
+  max-width: 200px;
+  overflow-wrap: anywhere;
+}
+.muted {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.failed {
+  color: var(--error-color, #c65746);
+}
+.success {
+  color: var(--success-color, #10b981);
+}
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.iconButton {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  flex: 0 0 36px;
+}
+.secret {
+  font-family: $font-mono;
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    align-items: stretch;
+    > label {
+      flex: 1 1 120px;
+    }
+  }
+  .heading h1 {
+    font-size: 22px;
+  }
+}

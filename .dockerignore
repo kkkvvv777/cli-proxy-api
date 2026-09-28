@@ -18,6 +18,13 @@ LICENSE
 # Runtime data folders (should be mounted as volumes)
 auths
 logs
+data
+deploy/company/runtime
+deploy/company/backups
+.impeccable
+management/node_modules
+management/dist
+management/.github
 conv
 config.yaml
 

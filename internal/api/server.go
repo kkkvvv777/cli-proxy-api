@@ -21,6 +21,7 @@ import (
 	managementHandlers "github.com/router-for-me/CLIProxyAPI/v7/internal/api/handlers/management"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/api/middleware"
 	codexlive "github.com/router-for-me/CLIProxyAPI/v7/internal/client/codex/live"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/companygateway"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/managementasset"
@@ -37,6 +38,9 @@ import (
 // Server represents the main API server.
 // It encapsulates the Gin engine, HTTP server, handlers, and configuration.
 type Server struct {
+	company          *companygateway.Gateway
+	companyConfig    config.CompanyGatewayConfig
+	companyInitError error
 	// engine is the Gin web framework engine instance.
 	engine *gin.Engine
 
@@ -145,7 +149,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	// Resolve logs directory relative to the configuration file directory.
 	var requestLogger logging.RequestLogger
 	var toggle func(bool)
-	if !cfg.CommercialMode {
+	if !cfg.CommercialMode && !cfg.CompanyGateway.Enabled {
 		if optionState.requestLoggerFactory != nil {
 			requestLogger = optionState.requestLoggerFactory(cfg, configFilePath)
 		}
@@ -169,6 +173,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 
 	// Create server instance
 	s := &Server{
+		companyConfig:       cfg.CompanyGateway,
 		engine:              engine,
 		handlers:            handlers.NewBaseAPIHandlers(effectiveSDKConfig(cfg), authManager),
 		cfg:                 cfg,
@@ -221,6 +226,14 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	// subscribe-config heartbeat connection is healthy.
 	engine.Use(s.homeHeartbeatMiddleware())
 	engine.Use(s.exampleAPIKeySafeModeMiddleware())
+	if cfg.CompanyGateway.Enabled {
+		s.company, s.companyInitError = companygateway.Open(configFilePath, cfg.CompanyGateway.DataDir)
+		if s.companyInitError == nil {
+			engine.Use(s.company.Middleware())
+		} else {
+			engine.Use(func(c *gin.Context) { c.AbortWithStatus(http.StatusServiceUnavailable) })
+		}
+	}
 
 	// Setup routes
 	s.setupRoutes()
@@ -270,6 +283,9 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) Start() error {
 	if s == nil || s.server == nil {
 		return fmt.Errorf("failed to start HTTP server: server not initialized")
+	}
+	if s.companyInitError != nil {
+		return fmt.Errorf("company gateway initialization: %w", s.companyInitError)
 	}
 
 	addr := s.server.Addr
