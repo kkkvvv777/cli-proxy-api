@@ -26,7 +26,7 @@ func TestModelRequestBodyPassesThroughWithoutCompanySizeCap(t *testing.T) {
 
 	router := gin.New()
 	router.Use(g.Middleware())
-	paths := []string{"/v1/responses", "/v1/responses/compact", "/v1/chat/completions", "/v1/completions"}
+	paths := []string{"/v1/responses", "/v1/responses/compact", "/v1/chat/completions", "/v1/completions", "/v1/images/generations", "/v1/images/edits"}
 	var forwardedBytes int
 	for _, path := range paths {
 		router.POST(path, func(c *gin.Context) {

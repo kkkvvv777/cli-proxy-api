@@ -92,7 +92,8 @@ func (g *Gateway) Middleware() gin.HandlerFunc {
 		allowed := c.Request.Method == "GET" && c.Request.URL.Path == "/v1/models"
 		if c.Request.Method == "POST" {
 			switch c.Request.URL.Path {
-			case "/v1/chat/completions", "/v1/completions", "/v1/responses", "/v1/responses/compact":
+			case "/v1/chat/completions", "/v1/completions", "/v1/responses", "/v1/responses/compact",
+				"/v1/images/generations", "/v1/images/edits":
 				allowed = true
 			}
 		}

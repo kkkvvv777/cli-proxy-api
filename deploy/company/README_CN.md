@@ -48,7 +48,8 @@ Token 用量插件的部分普通资源接口默认不要求管理密钥；如�
 
 员工 Base URL：`https://公司域名/v1`，Key 在创建/轮换时仅展示一次。
 支持 `/models`、`/chat/completions`、`/completions`、`/responses`、
-`/responses/compact`，HTTP/SSE。其他协议、WebSocket、音视频未纳入本版公司入口。
+`/responses/compact`、`/images/generations` 和 `/images/edits`，按原生接口使用
+HTTP/SSE 或 multipart。其他协议、WebSocket、音视频未纳入本版公司入口。
 轮换保持原启停状态；禁用/删除/轮换立即影响新请求，不强行中断已进行的模型响应。
 模型请求不再由公司网关设置额外的字节上限，Nginx 的 `/v1/` 入口也不设置
 额外的请求体上限，由 ChatGPT/Codex 上游按实际模型能力返回结果或超限错误。

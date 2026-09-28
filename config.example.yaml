@@ -8,7 +8,8 @@ port: 8317
 # Opt-in employee keys and metadata-only durable audit. Changes require restart.
 # In company mode, legacy api-keys do not grant model access.
 # Supported employee routes: GET /v1/models, POST /v1/chat/completions,
-# /v1/completions, /v1/responses and /v1/responses/compact (HTTP/SSE).
+# /v1/completions, /v1/responses, /v1/responses/compact,
+# /v1/images/generations and /v1/images/edits (HTTP/SSE or multipart as applicable).
 company-gateway:
   enabled: false
   data-dir: "data"
