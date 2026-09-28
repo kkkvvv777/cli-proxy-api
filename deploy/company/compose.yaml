@@ -14,6 +14,8 @@ services:
       - ./runtime/logs:/CLIProxyAPI/logs
       - ./runtime/data:/CLIProxyAPI/data
       - ./runtime/plugins:/CLIProxyAPI/plugins
+    ports:
+      - "${GATEWAY_API_BIND_IP:-127.0.0.1}:${GATEWAY_API_PORT:-8317}:8317"
     restart: unless-stopped
     stop_grace_period: 60s
     logging:
@@ -23,6 +25,7 @@ services:
         max-file: "5"
     networks: [gateway]
   edge:
+    profiles: ["bundled-edge"]
     image: nginx:stable
     ports:
       - "${GATEWAY_BIND_IP:-0.0.0.0}:${GATEWAY_HTTPS_PORT:-443}:443"

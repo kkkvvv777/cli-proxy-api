@@ -12,20 +12,71 @@
 umask 077
 mkdir -p runtime/settings runtime/auths runtime/data runtime/logs runtime/plugins runtime/tls
 cp config.example.yaml runtime/settings/config.yaml
-printf 'MANAGEMENT_PASSWORD=%s\nGATEWAY_BIND_IP=0.0.0.0\nGATEWAY_HTTPS_PORT=443\n' "$(openssl rand -hex 32)" > .env
+printf 'MANAGEMENT_PASSWORD=%s\nGATEWAY_API_BIND_IP=127.0.0.1\nGATEWAY_API_PORT=8317\n' "$(openssl rand -hex 32)" > .env
 ```
 
-将公司域名的 TLS 证书和私钥放到 `runtime/tls/server.crt`、`server.key`。
-员工需要通过公网域名访问时保持 `GATEWAY_BIND_IP=0.0.0.0`，并在云安全组只开放
-`443` 端口，绝不要发布网关容器的 `8317` 端口。若只允许 VPN 访问，可改成服务器
-的 VPN 网卡地址，并把 `nginx.conf` 的访问规则收紧。
-若只做本机预览，可改为 `GATEWAY_BIND_IP=127.0.0.1`，再通过 SSH 隧道访问：
+本部署默认复用服务器已有的 Nginx：网关仅发布到云服务器本机的 `127.0.0.1:8317`，
+现有 Nginx 负责 `80/443`、证书和域名转发；不要把 `8317` 加入云安全组。
+因此不需要把证书复制到本项目的 `runtime/tls/`。只有启用可选的 `bundled-edge` profile
+时，才需要把证书放到 `runtime/tls/server.crt` 和 `server.key`。
+将下面的 Nginx 站点配置保存到 `/etc/nginx/sites-available/ai-longsun-lite.com`，
+替换当前用于证书申请的临时配置：
 
-```sh
-ssh -L 8443:127.0.0.1:8443 your-server
-docker compose config --quiet
-docker compose up -d --build
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ai.longsun-lite.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ai.longsun-lite.com;
+
+    ssl_certificate /etc/letsencrypt/live/ai.longsun-lite.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ai.longsun-lite.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location /v1/ {
+        client_max_body_size 0;
+        proxy_pass http://127.0.0.1:8317;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8317;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
+    }
+}
 ```
+
+然后执行 `sudo nginx -t && sudo systemctl reload nginx`。
+检查配置通过后，在本目录执行 `docker compose config --quiet` 和
+`docker compose up -d --build`。由于 `edge` 使用了 `bundled-edge` profile，默认不会启动第二个 Nginx。
 
 浏览器访问 `https://公司域名/management.html`，输入 `.env` 的管理密钥。
 统一复用原管理后台：在“配置管理”的 API Key 区域管理员工，在侧栏“调用审计”
