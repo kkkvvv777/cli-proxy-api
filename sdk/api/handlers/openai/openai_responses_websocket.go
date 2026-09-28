@@ -440,6 +440,9 @@ func (h *OpenAIResponsesAPIHandler) ResponsesWebsocket(c *gin.Context) {
 		// )
 		wsTimelineLog.BeginRequest()
 		wsTimelineLog.Append("request", payload, time.Now())
+		if h.handleCompanyResponsesImageWebsocket(c, writer, wsTimelineLog, payload) {
+			return
+		}
 
 		explicitRequestModelName := strings.TrimSpace(gjson.GetBytes(payload, "model").String())
 		requestModelName := explicitRequestModelName
