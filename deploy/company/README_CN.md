@@ -12,13 +12,14 @@
 umask 077
 mkdir -p runtime/settings runtime/auths runtime/data runtime/logs runtime/plugins runtime/tls
 cp config.example.yaml runtime/settings/config.yaml
-printf 'MANAGEMENT_PASSWORD=%s\nGATEWAY_BIND_IP=127.0.0.1\n' "$(openssl rand -hex 32)" > .env
+printf 'MANAGEMENT_PASSWORD=%s\nGATEWAY_BIND_IP=0.0.0.0\nGATEWAY_HTTPS_PORT=443\n' "$(openssl rand -hex 32)" > .env
 ```
 
 将公司域名的 TLS 证书和私钥放到 `runtime/tls/server.crt`、`server.key`。
-把 `.env` 的 `GATEWAY_BIND_IP` 改成服务器 VPN 网卡地址；切勿设为 `0.0.0.0`。
-把 `nginx.conf` 的 allow 列表收紧至公司 VPN/办公网 CIDR，并在云安全组限制来源。
-若无 VPN，保持 `127.0.0.1`，通过 SSH 隧道预览：
+员工需要通过公网域名访问时保持 `GATEWAY_BIND_IP=0.0.0.0`，并在云安全组只开放
+`443` 端口，绝不要发布网关容器的 `8317` 端口。若只允许 VPN 访问，可改成服务器
+的 VPN 网卡地址，并把 `nginx.conf` 的访问规则收紧。
+若只做本机预览，可改为 `GATEWAY_BIND_IP=127.0.0.1`，再通过 SSH 隧道访问：
 
 ```sh
 ssh -L 8443:127.0.0.1:8443 your-server
@@ -26,10 +27,13 @@ docker compose config --quiet
 docker compose up -d --build
 ```
 
-浏览器访问 `https://公司域名:8443/management.html`，输入 `.env` 的管理密钥。
+浏览器访问 `https://公司域名/management.html`，输入 `.env` 的管理密钥。
 统一复用原管理后台：在“配置管理”的 API Key 区域管理员工，在侧栏“调用审计”
 查询历史。一次登录即可切换所有功能，没有第二套页面或密码输入。
 员工创建、改名、启停、轮换及删除立即保存，无需再提交 YAML 配置草稿。
+本模板按同域公开后台处理：页面可被发现，但管理 API 仍必须提供管理员密钥。
+Token 用量插件的部分普通资源接口默认不要求管理密钥；如果不希望员工看到插件统计元数据，
+不要公开后台，改用 VPN/SSH 隧道或在边缘层为 `/v0/resource/plugins/` 增加访问控制。
 旧 `/management.html?company=1` 地址自动跳转到原配置管理的 Key 区域。
 公司镜像从 `management/` 源码构建单文件面板并固定在镜像内，不挂载或在线替换前端。
 前端代码沿用原项目，只扩展员工 Key 和审计；公司模式禁止原版面板自动更新覆盖。
@@ -38,7 +42,7 @@ docker compose up -d --build
 不要向公网暴露 OAuth 端口。启用任何订阅 OAuth 前核实供应商允许的使用范围；
 不要将个人订阅默认视为可共享的企业 API 授权。
 
-员工 Base URL：`https://公司域名:8443/v1`，Key 在创建/轮换时仅展示一次。
+员工 Base URL：`https://公司域名/v1`，Key 在创建/轮换时仅展示一次。
 支持 `/models`、`/chat/completions`、`/completions`、`/responses`、
 `/responses/compact`，HTTP/SSE。其他协议、WebSocket、音视频未纳入本版公司入口。
 轮换保持原启停状态；禁用/删除/轮换立即影响新请求，不强行中断已进行的模型响应。
