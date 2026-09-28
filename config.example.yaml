@@ -10,6 +10,8 @@ port: 8317
 # Supported employee routes: GET /v1/models, POST /v1/chat/completions,
 # /v1/completions, /v1/responses, /v1/responses/compact,
 # /v1/images/generations and /v1/images/edits (HTTP/SSE or multipart as applicable).
+# In company mode, image-only models sent to POST /v1/responses are internally
+# adapted to the native image endpoint and returned in Responses format.
 company-gateway:
   enabled: false
   data-dir: "data"

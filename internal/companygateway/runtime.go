@@ -13,8 +13,6 @@ import (
 	coreusage "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/usage"
 )
 
-const verifiedKey = "company.gateway.verified"
-
 // Gateway belongs to one server, avoiding process-global employee registries.
 type Gateway struct {
 	Users *Store
@@ -40,8 +38,7 @@ func Open(configPath, dataDir string) (*Gateway, error) {
 }
 
 func Verified(c *gin.Context) bool {
-	value, _ := c.Get(verifiedKey)
-	return value == true
+	return handlers.CompanyGatewayVerified(c)
 }
 
 func modelPath(path string) bool {
@@ -104,7 +101,7 @@ func (g *Gateway) Middleware() gin.HandlerFunc {
 		c.Set("userApiKey", "company:"+result.Principal)
 		c.Set("accessProvider", result.Provider)
 		c.Set("accessMetadata", result.Metadata)
-		c.Set(verifiedKey, true)
+		c.Set("company.gateway.verified", true)
 		observer = &RequestAudit{Store: g.Audit, Base: entry}
 		c.Request = c.Request.WithContext(coreusage.WithRequestPlugin(c.Request.Context(), observer))
 		c.Next()

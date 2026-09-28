@@ -197,15 +197,17 @@ func requestExecutionMetadata(ctx context.Context) map[string]any {
 	// Idempotency-Key is an optional client-supplied header used to correlate retries.
 	// Only include it if the client explicitly provides it.
 	key := ""
-	requestPath := ""
+	requestPath := requestPathOverride(ctx)
 	var ginCtx *gin.Context
 	if ctx != nil {
 		if requestGinCtx, ok := ctx.Value("gin").(*gin.Context); ok && requestGinCtx != nil && requestGinCtx.Request != nil {
 			ginCtx = requestGinCtx
 			key = strings.TrimSpace(ginCtx.GetHeader("Idempotency-Key"))
-			requestPath = strings.TrimSpace(ginCtx.FullPath())
-			if requestPath == "" && ginCtx.Request.URL != nil {
-				requestPath = strings.TrimSpace(ginCtx.Request.URL.Path)
+			if requestPath == "" {
+				requestPath = strings.TrimSpace(ginCtx.FullPath())
+				if requestPath == "" && ginCtx.Request.URL != nil {
+					requestPath = strings.TrimSpace(ginCtx.Request.URL.Path)
+				}
 			}
 		}
 	}

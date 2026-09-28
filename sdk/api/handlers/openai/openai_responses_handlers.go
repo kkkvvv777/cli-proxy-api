@@ -552,6 +552,13 @@ func (h *OpenAIResponsesAPIHandler) Responses(c *gin.Context) {
 		return
 	}
 
+	// Company clients may send image-only models through /v1/responses. Keep
+	// the public protocol stable and adapt only authenticated company traffic
+	// to the native image endpoint internally.
+	if h.handleCompanyResponsesImage(c, rawJSON) {
+		return
+	}
+
 	rawJSON = h.prepareCodexMultiAgentV2Tools(c, rawJSON)
 	rawJSON = h.prepareCodexOrphanDelegation(c, rawJSON)
 
