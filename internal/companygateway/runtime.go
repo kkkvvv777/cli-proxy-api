@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/api/handlers"
 	coreusage "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/usage"
@@ -87,6 +88,9 @@ func (g *Gateway) Middleware() gin.HandlerFunc {
 		entry.UserID = result.Metadata["company_user_id"]
 		entry.UserName = result.Metadata["company_user_name"]
 		allowed := c.Request.Method == "GET" && c.Request.URL.Path == "/v1/models"
+		if c.Request.Method == "GET" && c.Request.URL.Path == "/v1/responses" && websocket.IsWebSocketUpgrade(c.Request) {
+			allowed = true
+		}
 		if c.Request.Method == "POST" {
 			switch c.Request.URL.Path {
 			case "/v1/chat/completions", "/v1/completions", "/v1/responses", "/v1/responses/compact",

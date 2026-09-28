@@ -81,6 +81,39 @@ func TestModelRequestBodyPassesThroughWithoutCompanySizeCap(t *testing.T) {
 	})
 }
 
+func TestResponsesWebsocketHandshakePassesCompanyAuth(t *testing.T) {
+	g, err := Open(filepath.Join(t.TempDir(), "config.yaml"), "data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, key, err := g.Users.Create("websocket-test", "WebSocket Test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	router := gin.New()
+	router.Use(g.Middleware())
+	router.GET("/v1/responses", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("websocket handshake status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	regularGet := httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	regularGet.Header.Set("Authorization", "Bearer "+key)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, regularGet)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("regular GET status=%d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
 func fmtBool(chunked bool) string {
 	if chunked {
 		return "/unknown-length"
