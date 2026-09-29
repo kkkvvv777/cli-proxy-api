@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -439,6 +440,11 @@ func buildCompanyResponsesImageStreamEvents(responsePayload []byte, sequenceNumb
 	if !json.Valid(responsePayload) {
 		return nil, fmt.Errorf("invalid image response envelope")
 	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, responsePayload); err != nil {
+		return nil, fmt.Errorf("compact image response envelope: %w", err)
+	}
+	responsePayload = compacted.Bytes()
 	output := gjson.GetBytes(responsePayload, "output")
 	if !output.IsArray() || len(output.Array()) == 0 {
 		return nil, fmt.Errorf("image response envelope has no output items")

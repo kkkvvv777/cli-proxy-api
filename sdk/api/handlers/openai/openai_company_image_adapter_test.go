@@ -180,7 +180,14 @@ func TestCompanyResponsesImageResponseSupportsDataURL(t *testing.T) {
 }
 
 func TestBuildCompanyResponsesImageStreamEvents(t *testing.T) {
-	response := []byte(`{"id":"resp-1","status":"completed","output":[{"type":"image_generation_call","status":"completed","result":"aW1hZ2U="}]}`)
+	response := []byte(`{
+  "id":"resp-1",
+  "status":"completed",
+  "output":[{"type":"image_generation_call","status":"completed","result":"aW1hZ2U="}],
+  "usage": {
+    "total_tokens": 1
+  }
+}`)
 	events, err := buildCompanyResponsesImageStreamEvents(response, 4)
 	if err != nil {
 		t.Fatalf("buildCompanyResponsesImageStreamEvents() error = %v", err)
@@ -208,6 +215,9 @@ func TestBuildCompanyResponsesImageStreamEvents(t *testing.T) {
 	}
 	if got := gjson.GetBytes(events[2].Payload, "sequence_number").Int(); got != 6 {
 		t.Fatalf("completed sequence_number = %d, want 6", got)
+	}
+	if strings.Contains(string(events[2].Payload), "\n") {
+		t.Fatal("completed image event must contain one compact JSON line")
 	}
 }
 
