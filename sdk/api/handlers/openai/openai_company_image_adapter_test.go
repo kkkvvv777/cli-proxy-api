@@ -86,6 +86,38 @@ func TestCompanyResponsesImageAdapterRequiresCompanyVerification(t *testing.T) {
 	}
 }
 
+func TestCompanyResponsesImageAdapterReadsImageModelFromTool(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-5.4-mini",
+		"input":"draw a small orange tree",
+		"tools":[{"type":"image_generation","model":"gpt-image-2"}]
+	}`)
+
+	model, ok := companyResponsesImageModel(raw)
+	if !ok || model != "gpt-image-2" {
+		t.Fatalf("image model = %q, ok=%t; want gpt-image-2", model, ok)
+	}
+	_, imageJSON, err := buildCompanyResponsesImageRequest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := gjson.GetBytes(imageJSON, "model").String(); got != "gpt-image-2" {
+		t.Fatalf("upstream image model = %q, want gpt-image-2", got)
+	}
+}
+
+func TestCompanyResponsesImageAdapterDefaultsToolImageModel(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-5.4-mini",
+		"input":"draw a small orange tree",
+		"tools":[{"type":"image_generation"}]
+	}`)
+	model, ok := companyResponsesImageModel(raw)
+	if !ok || model != defaultImagesToolModel {
+		t.Fatalf("image model = %q, ok=%t; want %q", model, ok, defaultImagesToolModel)
+	}
+}
+
 func TestBuildCompanyResponsesImageResponse(t *testing.T) {
 	payload, err := buildCompanyResponsesImageResponse([]byte(`{
 		"created":1720000000,

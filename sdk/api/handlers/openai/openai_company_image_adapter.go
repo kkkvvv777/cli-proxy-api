@@ -43,15 +43,37 @@ func isCompanyResponsesImageRequest(c *gin.Context, rawJSON []byte) bool {
 	if !handlers.CompanyGatewayVerified(c) {
 		return false
 	}
-	model := strings.TrimSpace(gjson.GetBytes(rawJSON, "model").String())
-	baseModel := thinking.ParseSuffix(model).ModelName
-	return model != "" && isSupportedImagesModel(baseModel)
+	_, ok := companyResponsesImageModel(rawJSON)
+	return ok
+}
+
+// companyResponsesImageModel accepts both shapes used by Responses clients:
+// some put the selected image model at request.model, while others keep the
+// main text model there and put the image model on tools[].model.
+func companyResponsesImageModel(rawJSON []byte) (string, bool) {
+	requestModel := strings.TrimSpace(gjson.GetBytes(rawJSON, "model").String())
+	if requestModel != "" && isSupportedImagesModel(thinking.ParseSuffix(requestModel).ModelName) {
+		return requestModel, true
+	}
+
+	for _, tool := range gjson.GetBytes(rawJSON, "tools").Array() {
+		if !strings.EqualFold(strings.TrimSpace(tool.Get("type").String()), "image_generation") {
+			continue
+		}
+		toolModel := strings.TrimSpace(tool.Get("model").String())
+		if toolModel == "" {
+			toolModel = defaultImagesToolModel
+		}
+		if isSupportedImagesModel(thinking.ParseSuffix(toolModel).ModelName) {
+			return toolModel, true
+		}
+	}
+	return "", false
 }
 
 func buildCompanyResponsesImageRequest(rawJSON []byte) (companyResponsesImageRequest, []byte, error) {
-	model := strings.TrimSpace(gjson.GetBytes(rawJSON, "model").String())
-	baseModel := strings.TrimSpace(thinking.ParseSuffix(model).ModelName)
-	if model == "" || baseModel == "" {
+	model, ok := companyResponsesImageModel(rawJSON)
+	if !ok {
 		return companyResponsesImageRequest{}, nil, fmt.Errorf("image model is required")
 	}
 
