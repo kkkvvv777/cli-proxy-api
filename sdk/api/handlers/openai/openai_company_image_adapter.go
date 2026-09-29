@@ -420,6 +420,11 @@ func (h *OpenAIResponsesAPIHandler) handleCompanyResponsesImageStream(c *gin.Con
 		return
 	}
 	for _, event := range imageEvents {
+		if event.Type == "response.output_item.done" {
+			// Keep the large base64 result in response.completed only. Sending it
+			// twice can make slower SSE clients time out before the terminal event.
+			event.Payload = compactCompanyResponsesImageDoneEvent(event.Payload)
+		}
 		writeResponseEvent(event.Type, event.Payload)
 	}
 	cancel(nil)

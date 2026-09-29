@@ -122,7 +122,7 @@ func (h *OpenAIResponsesAPIHandler) handleCompanyResponsesImageWebsocket(
 		if event.Type == "response.output_item.done" {
 			// Keep the large base64 result in response.completed only. Sending it
 			// twice can make slower clients time out before the terminal event.
-			event.Payload = compactCompanyResponsesImageWebsocketDoneEvent(event.Payload)
+			event.Payload = compactCompanyResponsesImageDoneEvent(event.Payload)
 		}
 		if errWrite := writeEvent(event.Type, event.Payload); errWrite != nil {
 			cancel(errWrite)
@@ -133,7 +133,7 @@ func (h *OpenAIResponsesAPIHandler) handleCompanyResponsesImageWebsocket(
 	return true
 }
 
-func compactCompanyResponsesImageWebsocketDoneEvent(payload []byte) []byte {
+func compactCompanyResponsesImageDoneEvent(payload []byte) []byte {
 	compacted, err := sjson.DeleteBytes(payload, "item.result")
 	if err != nil {
 		return payload

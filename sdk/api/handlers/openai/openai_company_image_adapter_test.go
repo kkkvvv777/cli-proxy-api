@@ -211,11 +211,11 @@ func TestBuildCompanyResponsesImageStreamEvents(t *testing.T) {
 	}
 }
 
-func TestCompanyResponsesImageWebsocketDoneEventCanOmitLargeResult(t *testing.T) {
+func TestCompanyResponsesImageDoneEventCanOmitLargeResult(t *testing.T) {
 	event := []byte(`{"type":"response.output_item.done","item":{"type":"image_generation_call","result":"large-image-result"}}`)
-	compacted := compactCompanyResponsesImageWebsocketDoneEvent(event)
+	compacted := compactCompanyResponsesImageDoneEvent(event)
 	if gjson.GetBytes(compacted, "item.result").Exists() {
-		t.Fatal("websocket done event still contains the duplicated image result")
+		t.Fatal("image done event still contains the duplicated image result")
 	}
 	if gjson.GetBytes(compacted, "item.type").String() != "image_generation_call" {
 		t.Fatal("websocket done event lost its item")
