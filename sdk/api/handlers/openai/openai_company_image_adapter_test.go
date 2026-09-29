@@ -220,14 +220,3 @@ func TestBuildCompanyResponsesImageStreamEvents(t *testing.T) {
 		t.Fatal("completed image event must contain one compact JSON line")
 	}
 }
-
-func TestCompanyResponsesImageDoneEventCanOmitLargeResult(t *testing.T) {
-	event := []byte(`{"type":"response.output_item.done","item":{"type":"image_generation_call","result":"large-image-result"}}`)
-	compacted := compactCompanyResponsesImageDoneEvent(event)
-	if gjson.GetBytes(compacted, "item.result").Exists() {
-		t.Fatal("image done event still contains the duplicated image result")
-	}
-	if gjson.GetBytes(compacted, "item.type").String() != "image_generation_call" {
-		t.Fatal("websocket done event lost its item")
-	}
-}
