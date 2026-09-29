@@ -167,16 +167,90 @@ func joinCompanyImageItems(items [][]byte) []byte {
 }
 
 func extractCompanyResponsesImagePrompt(rawJSON []byte) string {
-	parts := make([]string, 0, 3)
-	appendText := func(value string) {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			parts = append(parts, value)
+	instructions := strings.TrimSpace(gjson.GetBytes(rawJSON, "instructions").String())
+	input := gjson.GetBytes(rawJSON, "input")
+	if prompt := latestCompanyResponsesUserPrompt(input); prompt != "" {
+		if companyResponsesInputHasHistory(input) {
+			return prompt
+		}
+		return joinCompanyResponsesPromptParts(instructions, prompt)
+	}
+
+	parts := make([]string, 0, 2)
+	if instructions != "" {
+		parts = append(parts, instructions)
+	}
+	appendCompanyResponseText(&parts, input)
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+func latestCompanyResponsesUserPrompt(input gjson.Result) string {
+	latest := ""
+	var walk func(gjson.Result)
+	walk = func(node gjson.Result) {
+		if !node.Exists() {
+			return
+		}
+		if node.IsArray() {
+			for _, item := range node.Array() {
+				walk(item)
+			}
+			return
+		}
+		if !strings.EqualFold(strings.TrimSpace(node.Get("role").String()), "user") {
+			if content := node.Get("content"); content.Exists() {
+				walk(content)
+			}
+			return
+		}
+		parts := make([]string, 0, 2)
+		appendCompanyResponseText(&parts, node.Get("content"))
+		if len(parts) == 0 {
+			appendCompanyResponseText(&parts, node.Get("text"))
+		}
+		latest = strings.TrimSpace(strings.Join(parts, "\n\n"))
+	}
+	walk(input)
+	return latest
+}
+
+func companyResponsesInputHasHistory(input gjson.Result) bool {
+	messageCount := 0
+	hasNonUserMessage := false
+	var walk func(gjson.Result)
+	walk = func(node gjson.Result) {
+		if !node.Exists() {
+			return
+		}
+		if node.IsArray() {
+			for _, item := range node.Array() {
+				walk(item)
+			}
+			return
+		}
+		if role := strings.TrimSpace(node.Get("role").String()); role != "" {
+			messageCount++
+			if !strings.EqualFold(role, "user") {
+				hasNonUserMessage = true
+			}
+			return
+		}
+		if content := node.Get("content"); content.Exists() {
+			walk(content)
 		}
 	}
-	appendText(gjson.GetBytes(rawJSON, "instructions").String())
-	appendCompanyResponseText(&parts, gjson.GetBytes(rawJSON, "input"))
-	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+	walk(input)
+	return hasNonUserMessage || messageCount > 1
+}
+
+func joinCompanyResponsesPromptParts(parts ...string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			filtered = append(filtered, value)
+		}
+	}
+	return strings.TrimSpace(strings.Join(filtered, "\n\n"))
 }
 
 func appendCompanyResponseText(parts *[]string, node gjson.Result) {

@@ -68,6 +68,29 @@ func TestBuildCompanyResponsesImageRequestEdit(t *testing.T) {
 	}
 }
 
+func TestBuildCompanyResponsesImageRequestUsesLatestUserPrompt(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-image-2",
+		"instructions":"long system instructions should not become the image prompt",
+		"input":[
+			{"type":"message","role":"developer","content":[{"type":"input_text","text":"old developer context"}]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"old assistant response"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"draw only this latest request"}]}
+		]
+	}`)
+
+	request, imageJSON, err := buildCompanyResponsesImageRequest(raw)
+	if err != nil {
+		t.Fatalf("buildCompanyResponsesImageRequest() error = %v", err)
+	}
+	if request.Prompt != "draw only this latest request" {
+		t.Fatalf("prompt = %q", request.Prompt)
+	}
+	if got := gjson.GetBytes(imageJSON, "prompt").String(); got != request.Prompt {
+		t.Fatalf("image prompt = %q, want %q", got, request.Prompt)
+	}
+}
+
 func TestCompanyResponsesImageAdapterRequiresCompanyVerification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
